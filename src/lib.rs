@@ -1,10 +1,9 @@
-pub mod daemon;
 pub mod client;
+mod consts;
+pub mod daemon;
+mod shutdown;
 pub mod signals;
 mod wallpaper_changer;
-mod shutdown;
-mod consts;
 
 pub use consts::REFRESH_INTERVAl_IN_SECS;
 pub use consts::CACHE_STORE_TTL;
-

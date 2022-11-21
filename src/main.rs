@@ -1,11 +1,11 @@
-use std::path::{PathBuf, Path};
-use std::time::Duration;
-use clap::{Parser, Subcommand, Args, ValueEnum};
-use gobbler::{daemon, client};
+use clap::{Parser, Subcommand};
+use gobbler::signals::Signal;
 use gobbler::REFRESH_INTERVAl_IN_SECS;
 use gobbler::CACHE_STORE_TTL;
-use gobbler::signals::Signal;
+use gobbler::{client, daemon};
 use log::info;
+use std::path::PathBuf;
+use std::time::Duration;
 
 /// Daemon which changes wallpapers from provided directory with a time interval
 ///
@@ -15,15 +15,15 @@ use log::info;
 #[derive(Parser, Debug)]
 struct StartArgs {
     /// Directory of the wallpapers
-    #[arg(short = 'd', long, env = "WPCYCLER_DIR")]
+    #[arg(short = 'd', long, env = "GOBBLER_DIR")]
     wallpapers_directory: PathBuf,
 
     /// Intervals between changing wallpapers in seconds
-    #[arg(long, value_name = "WPCYCLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAl_IN_SECS)]
+    #[arg(long, value_name = "GOBBLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAl_IN_SECS)]
     refresh_interval: u64,
 
     /// Intervals between fetching list of files in wallpapers_directory in seconds
-    #[arg(long = "wallpapers-directory-refresh-interval", value_name = "WPCYCLER_REFRESH_WALLPAPERS_DIR_INTERVAL", default_value_t = CACHE_STORE_TTL)]
+    #[arg(long = "wallpapers-directory-refresh-interval", value_name = "GOBBLER_REFRESH_WALLPAPERS_DIR_INTERVAL", default_value_t = CACHE_STORE_TTL)]
     cache_ttl: u64,
 }
 /// Simple wallpaper changer for X11 based standalone window managers.
@@ -54,9 +54,8 @@ enum Cmd {
 #[derive(Parser, Debug)]
 struct DoArgs {
     #[arg(value_enum)]
-    signal: Signal
+    signal: Signal,
 }
-
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -73,10 +72,10 @@ async fn main() -> std::io::Result<()> {
             daemon::init(args.wallpapers_directory, refresh_interval, cache_ttl).await;
             info!("Daemon shut down");
             Ok(())
-        },
+        }
         Cmd::Do(args) => {
             client::invoke(args.signal);
             Ok(())
-        },
+        }
     }
 }

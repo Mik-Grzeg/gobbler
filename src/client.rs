@@ -1,5 +1,5 @@
-use super::signals::Signal;
 use super::consts::UNIX_PIPE_FILE_NAME;
+use super::signals::Signal;
 use log::debug;
 
 /// Writes signal invoked in the client to the pipe
@@ -9,7 +9,7 @@ pub fn invoke(signal: Signal) {
 
     // Write signal to the pipe
     let mut writer =
-    unix_named_pipe::open_write(pipe_path).expect("could not open test pipe for writing");
+        unix_named_pipe::open_write(pipe_path).expect("could not open test pipe for writing");
 
     let len = bincode::encode_into_std_write(&signal, &mut writer, config).unwrap();
 

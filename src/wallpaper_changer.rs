@@ -1,13 +1,11 @@
-use std::{process::Command, collections::HashSet, hash::Hash, sync::MutexGuard};
-use crate::{signals::Signal, shutdown::{Shutdown, self}};
+use crate::{shutdown::Shutdown, signals::Signal};
 use glob::glob;
+use log::{debug, info, warn};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
-use std::path::PathBuf;
-use log::{debug, info, warn};
+use std::{process::Command, sync::MutexGuard};
 use tokio::time;
-use std::sync::Arc;
-
 
 /// Wallpaper directory cache store
 ///
@@ -26,7 +24,6 @@ pub struct FilesMetadataCacheStore {
     /// Id of the current wallpaper
     current_id: Mutex<usize>,
 }
-
 
 impl FilesMetadataCacheStore {
     /// Constructor
@@ -52,7 +49,8 @@ impl FilesMetadataCacheStore {
             format!("{}/**/*.png", dir.display()),
         ];
 
-        let files = glob(&glob_patterns[0]).unwrap()
+        let files = glob(&glob_patterns[0])
+            .unwrap()
             .chain(glob(&glob_patterns[1]).unwrap())
             .filter_map(|f| {
                 debug!("File: {:?}", f);
@@ -68,11 +66,10 @@ impl FilesMetadataCacheStore {
         let (files, size) = Self::get_matched_files(dir);
 
         let mut store: Vec<PathBuf> = Vec::with_capacity(size);
-        files
-            .for_each(|f| {
-                debug!("file to append: {f:?}");
-                store.push(f);
-            });
+        files.for_each(|f| {
+            debug!("file to append: {f:?}");
+            store.push(f);
+        });
 
         store
     }
@@ -104,20 +101,23 @@ impl FilesMetadataCacheStore {
             let (files, size) = Self::get_matched_files(&self.dir);
             Self::ensure_store_capacity_is_enough(&mut store, size);
 
-            files
-                .for_each(|f| {
-                    debug!("file to append: {f:?}");
-                    if !store.contains(&f) {
-                        store.push(f);
-                    }
-                })
-            }
+            files.for_each(|f| {
+                debug!("file to append: {f:?}");
+                if !store.contains(&f) {
+                    store.push(f);
+                }
+            })
+        }
     }
 
     /// Responsible for changing wallpapers
     ///
     /// It sleeps for the duration of provided interval and then sets new background
-    pub async fn start_background_changer(&self, refresh_interval: Duration, mut shutdown: Shutdown) {
+    pub async fn start_background_changer(
+        &self,
+        refresh_interval: Duration,
+        mut shutdown: Shutdown,
+    ) {
         let mut interval = time::interval(refresh_interval);
 
         while !shutdown.is_shutdown() {
@@ -131,7 +131,6 @@ impl FilesMetadataCacheStore {
                     return
                 }
             }
-
         }
     }
 
@@ -156,7 +155,7 @@ impl FilesMetadataCacheStore {
                 } else {
                     *id = 0;
                 }
-            },
+            }
             Signal::Prev => {
                 if *id > 0 {
                     *id -= 1;
@@ -167,12 +166,14 @@ impl FilesMetadataCacheStore {
         };
         debug!("New id: {}", *id);
 
-
         Command::new("feh")
             .args(["--bg-scale", store[*id].to_str().unwrap()])
             .status()
             .expect("unable to set wallpaper with feh");
 
-        info!("Successfully changed wallpaper to: {}", store[*id].to_str().unwrap());
+        info!(
+            "Successfully changed wallpaper to: {}",
+            store[*id].to_str().unwrap()
+        );
     }
 }

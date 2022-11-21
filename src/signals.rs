@@ -1,6 +1,5 @@
-use clap::ValueEnum;
 use bincode::{Decode, Encode};
-
+use clap::ValueEnum;
 
 /// Signal to propagate to the daemon
 ///
@@ -11,6 +10,5 @@ pub enum Signal {
     Next = 1,
 
     /// Allows to notify wallpaper switching daemon to change to the previous wallpaper
-    Prev = 2
+    Prev = 2,
 }
-

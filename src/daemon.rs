@@ -1,36 +1,32 @@
-use std::fs::{read_dir, DirEntry};
-use std::task::Waker;
 use super::shutdown::Shutdown;
-use std::{time::Duration, io::Read};
-use std::path::{PathBuf, Path};
 use futures::Future;
-use signal_hook::{consts::{SIGINT, SIGTERM, SIGQUIT}, iterator::Signals};
+use signal_hook::{
+    consts::{SIGINT, SIGQUIT, SIGTERM},
+    iterator::Signals,
+};
+use std::path::{Path, PathBuf};
+use std::task::Waker;
+use std::time::Duration;
 
 use super::consts::UNIX_PIPE_FILE_NAME;
-use super::consts::CACHE_STORE_TTL;
-use bincode::config::{Config, Configuration};
-use bincode::error::DecodeError;
-use tokio::sync::broadcast::{Receiver, Sender};
+
+use bincode::config::Configuration;
+
+use log::{debug, error, info, warn};
 use tokio::sync::broadcast;
-use log::{debug, info, warn, error};
-use scopeguard::defer;
-use serde::Serialize;
+
 use super::signals::Signal;
-use std::{fs::{self, File}};
-use std::io::{Write, Seek};
-use std::thread::sleep;
+use std::fs::{self, File};
+
 use futures::stream::{Stream, StreamExt};
 use futures::task::{Context, Poll};
-use std::process::Command;
+use std::thread::sleep;
+
 use std::pin::Pin;
-use queues::{CircularBuffer, IsQueue};
-use glob::glob;
-use std::sync::{Arc, Mutex};
-use tokio::{task, time};
+
 use super::wallpaper_changer::FilesMetadataCacheStore;
-use std::cell::RefCell;
-
-
+use std::sync::Arc;
+use tokio::task;
 
 /// PipeStream is a structure which hides the logic of reading file in a loop
 ///
@@ -51,7 +47,7 @@ impl PipeStream {
         Self {
             f,
             config,
-            waker: None
+            waker: None,
         }
     }
 }
@@ -61,11 +57,11 @@ impl Future for PipeStream {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let slf = self.get_mut();
-        if let Ok(s) =  bincode::decode_from_std_read(&mut slf.f, slf.config) {
-            return Poll::Ready(s)
+        if let Ok(s) = bincode::decode_from_std_read(&mut slf.f, slf.config) {
+            Poll::Ready(s)
         } else {
             slf.waker = Some(cx.waker().clone());
-            return Poll::Pending
+            Poll::Pending
         }
     }
 }
@@ -73,17 +69,13 @@ impl Future for PipeStream {
 impl Stream for PipeStream {
     type Item = Signal;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>
-        ) -> Poll<Option<Self::Item>> {
-
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut slf = self.get_mut();
 
         let polled = Pin::new(&mut slf).poll(cx);
         match polled {
             Poll::Ready(s) => return Poll::Ready(Some(s)),
-            Poll::Pending => slf.waker.as_ref().unwrap().wake_by_ref()
+            Poll::Pending => slf.waker.as_ref().unwrap().wake_by_ref(),
         }
 
         sleep(Duration::from_millis(50));
@@ -92,7 +84,11 @@ impl Stream for PipeStream {
 }
 
 /// Handles signals invoked by client
-async fn client_signal_handler(mut pipe_stream: PipeStream, cache: Arc<FilesMetadataCacheStore>, mut shutdown: Shutdown) {
+async fn client_signal_handler(
+    mut pipe_stream: PipeStream,
+    cache: Arc<FilesMetadataCacheStore>,
+    mut shutdown: Shutdown,
+) {
     loop {
         debug!(target: "client_task", "{}", shutdown.is_shutdown());
         let signal = tokio::select! {
@@ -117,7 +113,12 @@ async fn client_signal_handler(mut pipe_stream: PipeStream, cache: Arc<FilesMeta
 /// * changing wallpapers
 /// * watching for new wallpapers in the provided directory
 /// * listens to client events which can be triggered by the user
-async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration, pipe_path: &Path) -> std::io::Result<()> {
+async fn start(
+    walpapers_dir: PathBuf,
+    refresh_interval: Duration,
+    cache_ttl: Duration,
+    pipe_path: &Path,
+) -> std::io::Result<()> {
     let (tx, _) = broadcast::channel(1);
     let cache = Arc::new(FilesMetadataCacheStore::new(walpapers_dir, cache_ttl));
     let read = unix_named_pipe::open_read(pipe_path)?;
@@ -127,7 +128,7 @@ async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Du
 
     let client_task = task::spawn({
         let cache = cache.clone();
-        client_signal_handler(pipe_stream, cache.clone(), Shutdown::new(tx.subscribe()))
+        client_signal_handler(pipe_stream, cache, Shutdown::new(tx.subscribe()))
     });
 
     let file_store_refresh_task = task::spawn({
@@ -139,23 +140,26 @@ async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Du
     let background_changer_task = task::spawn({
         let cache = cache.clone();
         let rx = tx.subscribe();
-        async move { cache.start_background_changer(refresh_interval, Shutdown::new(rx)).await }
+        async move {
+            cache
+                .start_background_changer(refresh_interval, Shutdown::new(rx))
+                .await
+        }
     });
 
     let mut shutdown_signals = Signals::new(&[SIGINT, SIGTERM])?;
 
     let shutdown_signal_watcher = task::spawn(async move {
-       for signal in shutdown_signals.forever() {
+        for signal in shutdown_signals.forever() {
             match signal {
                 SIGTERM | SIGINT | SIGQUIT => {
                     warn!("Shutting down the daemon with signal: {signal}");
-                    return
-                },
+                    return;
+                }
                 _ => unreachable!(),
             }
         }
     });
-
 
     tokio::select! {
         _ = shutdown_signal_watcher => { },

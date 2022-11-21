@@ -15,7 +15,7 @@ impl Shutdown {
     pub fn new(receiver: Receiver<()>) -> Self {
         Self {
             receiver,
-            kill: false
+            kill: false,
         }
     }
 
@@ -27,9 +27,9 @@ impl Shutdown {
     /// Awaits for the the event in receiver, if it get it then it sets [self.kill] = true
     pub async fn recv(&mut self) {
         if self.kill {
-            return
+            return;
         }
-        let _ = self.receiver.recv().await.unwrap();
+        self.receiver.recv().await.unwrap();
 
         self.kill = true
     }
