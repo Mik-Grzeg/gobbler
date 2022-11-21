@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use std::path::PathBuf;
 
 /// Intervals between changing wallpapers
-pub const REFRESH_INTERVAl_IN_SECS: u64 = 3;
+pub const REFRESH_INTERVAL_IN_SECS: u64 = 3 * 60;
 
 pub const CACHE_STORE_TTL: u64 = 10 * 60;
 
