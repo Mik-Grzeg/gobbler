@@ -6,4 +6,5 @@ mod shutdown;
 mod consts;
 
 pub use consts::REFRESH_INTERVAl_IN_SECS;
+pub use consts::CACHE_STORE_TTL;
 

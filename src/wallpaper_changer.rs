@@ -38,13 +38,12 @@ pub struct FilesMetadataCacheStore {
 
 
 impl FilesMetadataCacheStore {
-    pub fn new(dir: PathBuf, ttl: u64) -> Self {
+    pub fn new(dir: PathBuf, ttl: Duration) -> Self {
         if !dir.is_dir() {
             panic!("{} is not a directory", dir.display())
         }
 
         let store = Self::get_wallpapers(&dir);
-        let ttl = Duration::from_secs(ttl);
 
         Self {
             dir,

@@ -102,10 +102,10 @@ async fn client_signal_handler(mut pipe_stream: PipeStream, cache: Arc<FilesMeta
     }
 }
 
-async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, pipe_path: &Path,
+async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration, pipe_path: &Path,
                shutdown: Sender<()>) -> std::io::Result<()> {
 
-    let cache = Arc::new(FilesMetadataCacheStore::new(walpapers_dir, CACHE_STORE_TTL));
+    let cache = Arc::new(FilesMetadataCacheStore::new(walpapers_dir, cache_ttl));
     let read = unix_named_pipe::open_read(pipe_path)?;
     let config = bincode::config::standard();
 
@@ -174,7 +174,7 @@ async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, pipe_path: &P
     Ok(())
 }
 
-pub async fn init(wallpapers_dir: PathBuf, refresh_interval: Duration) {
+pub async fn init(wallpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration) {
     let pipe_path = UNIX_PIPE_FILE_NAME.as_path();
     unix_named_pipe::create(pipe_path, Some(0o740)).unwrap();
     info!("Pipe has been created at: {}", pipe_path.display());
@@ -186,5 +186,5 @@ pub async fn init(wallpapers_dir: PathBuf, refresh_interval: Duration) {
 
     let (tx, _) = broadcast::channel(1);
 
-    start(wallpapers_dir, refresh_interval, pipe_path, tx.clone()).await.unwrap()
+    start(wallpapers_dir, refresh_interval, cache_ttl, pipe_path, tx.clone()).await.unwrap()
 }

@@ -3,6 +3,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand, Args, ValueEnum};
 use lib::{daemon, client};
 use lib::REFRESH_INTERVAl_IN_SECS;
+use lib::CACHE_STORE_TTL;
 use lib::signals::Signal;
 use log::info;
 
@@ -13,9 +14,13 @@ struct StartArgs {
     #[arg(short = 'd', long, env = "WPCYCLER_DIR")]
     wallpapers_directory: PathBuf,
 
-    /// Intervals between changing wallpapers
-    #[arg(short, long, value_name = "WPCYCLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAl_IN_SECS)]
+    /// Intervals between changing wallpapers in seconds
+    #[arg(long, value_name = "WPCYCLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAl_IN_SECS)]
     refresh_interval: u64,
+
+    /// Intervals between fetching list of files in wallpapers_directory in seconds
+    #[arg(long = "wallpapers-directory-refresh-interval", value_name = "WPCYCLER_REFRESH_WALLPAPERS_DIR_INTERVAL", default_value_t = CACHE_STORE_TTL)]
+    cache_ttl: u64,
 }
 
 /// Program to set wallpapers from directory based on previous applications
@@ -54,7 +59,9 @@ async fn main() -> std::io::Result<()> {
 
     match cli.cmd {
         Cmd::Start(args) => {
-            daemon::init(args.wallpapers_directory, Duration::from_secs(args.refresh_interval)).await;
+            let refresh_interval = Duration::from_secs(args.refresh_interval);
+            let cache_ttl = Duration::from_secs(args.cache_ttl);
+            daemon::init(args.wallpapers_directory, refresh_interval, cache_ttl).await;
             info!("Daemon shut down");
             Ok(())
         },
