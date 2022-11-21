@@ -243,6 +243,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "gobbler"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "clap",
+ "env_logger",
+ "futures",
+ "glob",
+ "lazy_static",
+ "log",
+ "queues",
+ "scopeguard",
+ "serde",
+ "serde_repr",
+ "shared_memory",
+ "signal-hook",
+ "tokio",
+ "unix-named-pipe",
+]
+
+[[package]]
 name = "heck"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -510,6 +531,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "signal-hook"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a253b5e89e2698464fc26b545c9edceb338e18a89effeeecfea192c3025be29d"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,23 +784,3 @@ name = "windows_x86_64_msvc"
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40009d85759725a34da6d89a94e63d7bdc50a862acf0dbc7c8e488f1edcb6f5"
-
-[[package]]
-name = "wp_cycler"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "clap",
- "env_logger",
- "futures",
- "glob",
- "lazy_static",
- "log",
- "queues",
- "scopeguard",
- "serde",
- "serde_repr",
- "shared_memory",
- "tokio",
- "unix-named-pipe",
-]

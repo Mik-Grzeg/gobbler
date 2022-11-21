@@ -1,13 +1,17 @@
 use std::path::{PathBuf, Path};
 use std::time::Duration;
 use clap::{Parser, Subcommand, Args, ValueEnum};
-use lib::{daemon, client};
-use lib::REFRESH_INTERVAl_IN_SECS;
-use lib::CACHE_STORE_TTL;
-use lib::signals::Signal;
+use gobbler::{daemon, client};
+use gobbler::REFRESH_INTERVAl_IN_SECS;
+use gobbler::CACHE_STORE_TTL;
+use gobbler::signals::Signal;
 use log::info;
 
 /// Daemon which changes wallpapers from provided directory with a time interval
+///
+/// * changing wallpapers
+/// * watching for new wallpapers in provided directory by the user
+/// * listens to client events which can be triggered by the user
 #[derive(Parser, Debug)]
 struct StartArgs {
     /// Directory of the wallpapers
@@ -22,11 +26,16 @@ struct StartArgs {
     #[arg(long = "wallpapers-directory-refresh-interval", value_name = "WPCYCLER_REFRESH_WALLPAPERS_DIR_INTERVAL", default_value_t = CACHE_STORE_TTL)]
     cache_ttl: u64,
 }
-
-/// Program to set wallpapers from directory based on previous applications
-/// they shouldn't repeat unless all of them have already been presented in specific round
+/// Simple wallpaper changer for X11 based standalone window managers.
+/// It requires a tool called 'feh' (https://feh.finalrewind.org/) to set wallpapers.
+///
+/// Allows to spawn a daemon which is responsible for
+///
+/// * changing wallpapers
+/// * watching for new wallpapers in provided directory by the user
+/// * listens to client events which can be triggered by the user
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
     #[command(subcommand)]

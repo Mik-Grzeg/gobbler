@@ -1,32 +1,35 @@
 use tokio::sync::broadcast::Receiver;
-use log::info;
 
+/// Shutdown helper which allows to propagate termination signal
+/// amongst asynchronous tasks
 pub struct Shutdown {
+    /// False until receiver receives an event
     kill: bool,
+
+    /// Broadcast receiver, which awaits for the first event
     receiver: Receiver<()>,
-    caller: String
 }
 
 impl Shutdown {
-    pub fn new(receiver: Receiver<()>, caller: String) -> Self {
+    /// Constructor
+    pub fn new(receiver: Receiver<()>) -> Self {
         Self {
             receiver,
-            caller,
             kill: false
         }
     }
 
+    /// Return state of the receiver
     pub fn is_shutdown(&self) -> bool {
         self.kill
     }
 
+    /// Awaits for the the event in receiver, if it get it then it sets [self.kill] = true
     pub async fn recv(&mut self) {
         if self.kill {
             return
         }
-
         let _ = self.receiver.recv().await.unwrap();
-        info!(target: "shutdown", "Received kill signal at: {}", self.caller);
 
         self.kill = true
     }

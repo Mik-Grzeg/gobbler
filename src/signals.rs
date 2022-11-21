@@ -2,8 +2,8 @@ use clap::ValueEnum;
 use bincode::{Decode, Encode};
 
 
-/// Signal to propagate to the daemon 
-/// 
+/// Signal to propagate to the daemon
+///
 /// If the daemon is not running, it will communicate proper message, that it has to be running
 #[derive(ValueEnum, Encode, Decode, Clone, Debug)]
 pub enum Signal {

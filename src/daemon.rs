@@ -4,6 +4,7 @@ use super::shutdown::Shutdown;
 use std::{time::Duration, io::Read};
 use std::path::{PathBuf, Path};
 use futures::Future;
+use signal_hook::{consts::{SIGINT, SIGTERM, SIGQUIT}, iterator::Signals};
 
 use super::consts::UNIX_PIPE_FILE_NAME;
 use super::consts::CACHE_STORE_TTL;
@@ -31,9 +32,17 @@ use std::cell::RefCell;
 
 
 
+/// PipeStream is a structure which hides the logic of reading file in a loop
+///
+/// It implements Stream, so it can be processed asynchronously
 struct PipeStream {
+    /// Unix named pipe file
     f: File,
+
+    /// Configuration of bincode that is used to encode/decode data sent by client
     config: Configuration,
+
+    /// Wakes up the stream to try to poll the future in case of of [Poll::Pending] state
     waker: Option<Waker>,
 }
 
@@ -82,6 +91,7 @@ impl Stream for PipeStream {
     }
 }
 
+/// Handles signals invoked by client
 async fn client_signal_handler(mut pipe_stream: PipeStream, cache: Arc<FilesMetadataCacheStore>, mut shutdown: Shutdown) {
     loop {
         debug!(target: "client_task", "{}", shutdown.is_shutdown());
@@ -102,9 +112,13 @@ async fn client_signal_handler(mut pipe_stream: PipeStream, cache: Arc<FilesMeta
     }
 }
 
-async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration, pipe_path: &Path,
-               shutdown: Sender<()>) -> std::io::Result<()> {
-
+/// Starts asynchronous tasks:
+///
+/// * changing wallpapers
+/// * watching for new wallpapers in the provided directory
+/// * listens to client events which can be triggered by the user
+async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration, pipe_path: &Path) -> std::io::Result<()> {
+    let (tx, _) = broadcast::channel(1);
     let cache = Arc::new(FilesMetadataCacheStore::new(walpapers_dir, cache_ttl));
     let read = unix_named_pipe::open_read(pipe_path)?;
     let config = bincode::config::standard();
@@ -113,52 +127,38 @@ async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Du
 
     let client_task = task::spawn({
         let cache = cache.clone();
-        client_signal_handler(pipe_stream, cache.clone(), Shutdown::new(shutdown.subscribe(), "client_task".to_owned()))
-        // let mut kill = kill.subscribe();
-        // async move {
-        //     tokio::select! {
-        //         r = kill.recv() => {
-        //             warn!(target: "client_singlas_receive_task", "Shutting down: {r:?}");
-        //         },
-        //         output = client_signal_handler(pipe_stream, cache.clone()) => output
-        //     }
-        // }
+        client_signal_handler(pipe_stream, cache.clone(), Shutdown::new(tx.subscribe()))
     });
+
     let file_store_refresh_task = task::spawn({
         let cache = cache.clone();
-        let rx = shutdown.subscribe();
-        async move { cache.refresh_store(Shutdown::new(rx, "refresh_store_task".to_owned())).await }
-        // let mut kill = kill.subscribe();
-        // async move {
-        //     tokio::select! {
-        //         r = kill.recv() => {
-        //             warn!(target: "file_store_refresh_task", "Shutting down: {:?}", r);
-        //             drop(r)
-        //         },
-        //         output = cache.refresh_store() => output
-        //     }
-        // }
+        let rx = tx.subscribe();
+        async move { cache.refresh_store(Shutdown::new(rx)).await }
     });
+
     let background_changer_task = task::spawn({
         let cache = cache.clone();
-        let rx = shutdown.subscribe();
-        async move { cache.start_background_changer(refresh_interval, Shutdown::new(rx, "background_changer_task".to_owned())).await }
-        // let mut kill = kill.subscribe();
-        // async move {
-        //     tokio::select! {
-        //         r = kill.recv() => {
-        //             warn!(target: "background_changer_task", "Shutting down: {r:?}");
-        //         },
-        //         output = cache.start_background_changer(refresh_interval) => output
-        //     }
-        // }
+        let rx = tx.subscribe();
+        async move { cache.start_background_changer(refresh_interval, Shutdown::new(rx)).await }
+    });
+
+    let mut shutdown_signals = Signals::new(&[SIGINT, SIGTERM])?;
+
+    let shutdown_signal_watcher = task::spawn(async move {
+       for signal in shutdown_signals.forever() {
+            match signal {
+                SIGTERM | SIGINT | SIGQUIT => {
+                    warn!("Shutting down the daemon with signal: {signal}");
+                    return
+                },
+                _ => unreachable!(),
+            }
+        }
     });
 
 
     tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            warn!("Shutting down the daemon");
-        },
+        _ = shutdown_signal_watcher => { },
         _ = background_changer_task => {
             warn!(target: "background_changer_task", "Shutting down");
         },
@@ -170,21 +170,21 @@ async fn start(walpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Du
         },
     }
 
-    shutdown.send(()).unwrap();
+    tx.send(());
     Ok(())
 }
 
+/// Initializing unix named pipe and daemon. It is also responsible for removing named piped after
+/// terminating the program
 pub async fn init(wallpapers_dir: PathBuf, refresh_interval: Duration, cache_ttl: Duration) {
     let pipe_path = UNIX_PIPE_FILE_NAME.as_path();
     unix_named_pipe::create(pipe_path, Some(0o740)).unwrap();
     info!("Pipe has been created at: {}", pipe_path.display());
 
-    defer! {
-        fs::remove_file(pipe_path).expect("could not remove pipe file");
-        info!("Removed {} successfully", pipe_path.display());
+    if let Err(why) = start(wallpapers_dir, refresh_interval, cache_ttl, pipe_path).await {
+        error!("IO error: {why}");
     }
 
-    let (tx, _) = broadcast::channel(1);
-
-    start(wallpapers_dir, refresh_interval, cache_ttl, pipe_path, tx.clone()).await.unwrap()
+    fs::remove_file(pipe_path).expect("could not remove pipe file");
+    info!("Removed pipe {} successfully", pipe_path.display());
 }

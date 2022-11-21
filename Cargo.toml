@@ -1,7 +1,9 @@
 [package]
-name = "wp_cycler"
+name = "gobbler"
+description = "Simple wallpaper changer for X11 based standalone window managers. It requires a tool called 'feh' (https://feh.finalrewind.org/) to set wallpapers."
 version = "0.1.0"
 edition = "2021"
+authors = ["Mikolaj Grzegorzek <mikolaj.grzegorzek@protonmail.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,8 +22,4 @@ futures = "0.3.25"
 tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread", "tokio-macros", "rt", "time", "signal", "sync"] }
 queues = "1.1.0"
 glob = "0.3.0"
-
-[lib]
-name = "lib"
-path = "src/lib.rs"
-
+signal-hook = "0.3.14"
