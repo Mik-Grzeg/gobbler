@@ -144,14 +144,14 @@ impl FilesMetadataCacheStore {
             Signal::Next => {
                 // moves head to the end
                 // which basically is shifting buffer by 1 to the left
-                if store_len > *id + 1 {
+                if store_len - 1 > *id {
                     *id += 1;
                 } else {
                     *id = 0;
                 }
             },
             Signal::Prev => {
-                if 0 > (*id - 1) as i32 {
+                if *id > 0 {
                     *id -= 1;
                 } else {
                     *id = store_len - 1;
