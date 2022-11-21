@@ -1,10 +1,10 @@
 use std::{process::Command, collections::HashSet, hash::Hash, sync::MutexGuard};
-use crate::signals::Signal;
+use crate::{signals::Signal, shutdown::{Shutdown, self}};
 use glob::glob;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::path::PathBuf;
-use log::{debug, info};
+use log::{debug, info, warn};
 use tokio::time;
 use std::sync::Arc;
 
@@ -25,10 +25,6 @@ use std::sync::Arc;
 //     }
 // }
 //
-
-pub async fn cache_refresher(cache: Arc<FilesMetadataCacheStore>) {
-    cache.refresh_store().await
-}
 
 /// Wallpaper directory cache store
 ///
@@ -95,11 +91,19 @@ impl FilesMetadataCacheStore {
         }
     }
 
-    pub async fn refresh_store(&self) {
+    pub async fn refresh_store(&self, mut shutdown: Shutdown) {
         let mut interval = time::interval(self.ttl);
-        loop {
+        while !shutdown.is_shutdown() {
+            debug!(target: "refresh_store_task", "{}", shutdown.is_shutdown());
 
-            interval.tick().await;
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.recv() => {
+                    warn!(target: "refresh_store_task", "received shutdown");
+                    return
+                }
+            }
+
             let mut store = self.store.lock().unwrap();
             let (files, size) = Self::get_matched_files(&self.dir);
             Self::ensure_store_capacity_is_enough(&mut store, size);
@@ -111,9 +115,23 @@ impl FilesMetadataCacheStore {
                         store.push(f);
                     }
                 })
-
             }
+    }
 
+    pub async fn start_background_changer(&self, refresh_interval: Duration, mut shutdown: Shutdown) {
+        let mut interval = time::interval(refresh_interval);
+
+        while !shutdown.is_shutdown() {
+            debug!(target: "background_changer_task", "{}", shutdown.is_shutdown());
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.recv() => {
+                    warn!(target: "start_background_changer_task", "received shutdown");
+                    break
+                }
+            }
+            self.set_background(Signal::Next);
+        }
     }
 
     pub fn set_background(&self, signal: Signal) {

@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand, Args, ValueEnum};
 use lib::{daemon, client};
 use lib::REFRESH_INTERVAl_IN_SECS;
 use lib::signals::Signal;
+use log::info;
 
 /// Daemon which changes wallpapers from provided directory with a time interval
 #[derive(Parser, Debug)]
@@ -44,7 +45,7 @@ struct DoArgs {
 
 
 #[tokio::main]
-async fn main() {
+async fn main() -> std::io::Result<()> {
     // Setup logger
     let env = env_logger::Env::default();
     env_logger::init_from_env(env);
@@ -53,12 +54,13 @@ async fn main() {
 
     match cli.cmd {
         Cmd::Start(args) => {
-
-            daemon::start(args.wallpapers_directory, Duration::from_secs(args.refresh_interval)).await;
+            daemon::init(args.wallpapers_directory, Duration::from_secs(args.refresh_interval)).await;
+            info!("Daemon shut down");
+            Ok(())
         },
         Cmd::Do(args) => {
             client::invoke(args.signal);
+            Ok(())
         },
-    };
-
+    }
 }

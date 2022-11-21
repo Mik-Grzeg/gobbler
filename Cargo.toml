@@ -17,7 +17,7 @@ serde = { version = "1.0.147", features = ["derive"] }
 scopeguard = "1.1.0"
 serde_repr = "0.1.9"
 futures = "0.3.25"
-tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread", "tokio-macros", "rt", "time"] }
+tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread", "tokio-macros", "rt", "time", "signal", "sync"] }
 queues = "1.1.0"
 glob = "0.3.0"
 
