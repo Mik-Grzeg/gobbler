@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use gobbler::signals::Signal;
-use gobbler::REFRESH_INTERVAl_IN_SECS;
+use gobbler::REFRESH_INTERVAL_IN_SECS;
 use gobbler::CACHE_STORE_TTL;
 use gobbler::{client, daemon};
 use log::info;
@@ -19,7 +19,7 @@ struct StartArgs {
     wallpapers_directory: PathBuf,
 
     /// Intervals between changing wallpapers in seconds
-    #[arg(long, value_name = "GOBBLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAl_IN_SECS)]
+    #[arg(long, value_name = "GOBBLER_REFRESH_INTERVAL", default_value_t = REFRESH_INTERVAL_IN_SECS)]
     refresh_interval: u64,
 
     /// Intervals between fetching list of files in wallpapers_directory in seconds
