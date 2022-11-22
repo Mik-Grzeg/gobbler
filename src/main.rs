@@ -1,9 +1,13 @@
 use clap::{Parser, Subcommand};
 use gobbler::signals::Signal;
+use daemonize::Daemonize;
+use std::fs::File;
 use gobbler::REFRESH_INTERVAL_IN_SECS;
 use gobbler::CACHE_STORE_TTL;
 use gobbler::{client, daemon};
+use log::LevelFilter;
 use log::info;
+use tokio::runtime::Runtime;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -57,20 +61,41 @@ struct DoArgs {
     signal: Signal,
 }
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
-    // Setup logger
-    let env = env_logger::Env::default().default_filter_or("info");
-    env_logger::init_from_env(env);
+fn main() -> std::io::Result<()> {
 
     let cli = Cli::parse();
 
     match cli.cmd {
         Cmd::Start(args) => {
-            let refresh_interval = Duration::from_secs(args.refresh_interval);
-            let cache_ttl = Duration::from_secs(args.cache_ttl);
-            daemon::init(args.wallpapers_directory, refresh_interval, cache_ttl).await;
-            info!("Daemon shut down");
+            let stdout = File::create("/tmp/gobbler.out").unwrap();
+            let stderr = File::create("/tmp/gobbler.err").unwrap();
+
+            let daemonize = Daemonize::new()
+                .pid_file("/tmp/gobbler.pid")
+                .chown_pid_file(true)
+                .working_directory("/tmp")
+                .stdout(stdout)
+                .stderr(stderr);
+
+
+            match daemonize.start() {
+                Ok(_) => {
+                    let rt = Runtime::new().unwrap();
+                    rt.block_on(async move {
+                        println!("Success, daemonized");
+                        //
+                        // Setup logger
+                        let env = env_logger::Env::default().default_filter_or("info");
+                        env_logger::init_from_env(env);
+
+                        let refresh_interval = Duration::from_secs(args.refresh_interval);
+                        let cache_ttl = Duration::from_secs(args.cache_ttl);
+                        daemon::init(args.wallpapers_directory, refresh_interval, cache_ttl).await;
+                        info!("Daemon shut down");
+                    });
+                },
+                Err(e) => eprintln!("Error, {}", e),
+            }
             Ok(())
         }
         Cmd::Do(args) => {
